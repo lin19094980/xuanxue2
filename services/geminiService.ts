@@ -5,13 +5,23 @@ import { ZODIAC_DATA } from "./zodiacData";
 
 // Safely retrieve API Key to prevent "ReferenceError: process is not defined" in browser runtimes
 const getApiKey = () => {
-  try {
+  let key = "";
+  
+  // 1. Try standard Vite environment variable (most likely for Vercel/Vite)
+  // @ts-ignore
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
     // @ts-ignore
-    return process.env.API_KEY;
-  } catch (e) {
-    console.warn("API Key not found in environment.");
-    return "";
+    key = import.meta.env.VITE_API_KEY;
   }
+  // 2. Try standard process.env (if polyfilled or defined by bundler)
+  else if (typeof process !== 'undefined' && process.env) {
+    key = process.env.API_KEY || "";
+  }
+
+  if (!key) {
+    console.warn("API Key not found. Ensure API_KEY (or VITE_API_KEY) is set in your environment variables.");
+  }
+  return key;
 };
 
 const ai = new GoogleGenAI({ apiKey: getApiKey() });

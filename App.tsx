@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserData, FortuneResult, AppStep } from './types';
 import { analyzeFortune } from './services/geminiService';
 import { BaguaLoader } from './components/BaguaLoader';
@@ -18,6 +18,10 @@ function App() {
   const [result, setResult] = useState<FortuneResult | null>(null);
   const [viewMode, setViewMode] = useState<'year' | number>('year'); // 'year' or month number 1-12
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    console.log("App mounted");
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -251,7 +255,7 @@ function App() {
         <div className="border-t border-mystic-accent/30 pt-12">
             <h3 className="text-2xl font-serif text-center text-mystic-gold mb-10 flex items-center justify-center">
             <span className="h-px w-12 bg-mystic-gold mx-4 opacity-50"></span>
-            大师化解开运法宝
+            大师解运方法
             <span className="h-px w-12 bg-mystic-gold mx-4 opacity-50"></span>
             </h3>
             <div className="grid md:grid-cols-3 gap-8">
