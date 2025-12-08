@@ -1,0 +1,22 @@
+
+{
+  "name": "玄学 2026 - 宋韶光运程",
+  "short_name": "玄学 2026",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a0529",
+  "theme_color": "#ffd700",
+  "description": "2026年宋韶光大师生肖运程预测",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/4710/4710086.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/4710/4710086.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

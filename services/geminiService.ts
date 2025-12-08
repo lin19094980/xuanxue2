@@ -3,7 +3,18 @@ import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { FortuneResult, UserData } from "../types";
 import { ZODIAC_DATA } from "./zodiacData";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Safely retrieve API Key to prevent "ReferenceError: process is not defined" in browser runtimes
+const getApiKey = () => {
+  try {
+    // @ts-ignore
+    return process.env.API_KEY;
+  } catch (e) {
+    console.warn("API Key not found in environment.");
+    return "";
+  }
+};
+
+const ai = new GoogleGenAI({ apiKey: getApiKey() });
 
 // Schema for structured JSON output
 const fortuneSchema: Schema = {
@@ -47,7 +58,6 @@ const fortuneSchema: Schema = {
 };
 
 // Simple Zodiac Calculator based on standard Feb 4th cutoff (Li Chun)
-// This is a simplified approximation for the purpose of the app.
 const getZodiacSign = (dobString: string): string => {
   const date = new Date(dobString);
   let year = date.getFullYear();
@@ -59,10 +69,7 @@ const getZodiacSign = (dobString: string): string => {
     year = year - 1;
   }
 
-  // Modulo 12 returns index (0=Monkey, 1=Rooster, ..., 11=Goat) if we base it on a specific cycle.
   // Standard cycle: Rat(4), Ox(5), Tiger(6), Rabbit(7), Dragon(8), Snake(9), Horse(10), Goat(11), Monkey(0), Rooster(1), Dog(2), Pig(3)
-  // Let's use a simpler array mapping from year % 12
-  
   const zodiacs = [
     "Monkey", "Rooster", "Dog", "Pig",
     "Rat", "Ox", "Tiger", "Rabbit",
