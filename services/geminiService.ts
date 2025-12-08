@@ -1,0 +1,135 @@
+
+import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { FortuneResult, UserData } from "../types";
+import { ZODIAC_DATA } from "./zodiacData";
+
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+// Schema for structured JSON output
+const fortuneSchema: Schema = {
+  type: Type.OBJECT,
+  properties: {
+    overview: {
+      type: Type.STRING,
+      description: "A comprehensive yearly overview. MUST combine '整体运程', '财运', '事业', '感情', '健康' sections from the source text using markdown headers.",
+    },
+    monthly: {
+      type: Type.ARRAY,
+      description: "A breakdown of fortune for each month of 2026.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          month: { type: Type.INTEGER, description: "The month number (1-12)" },
+          title: { type: Type.STRING, description: "A short 4-character idiom or title for the month based on content." },
+          solarDateRange: { type: Type.STRING, description: "The Gregorian date range for this lunar month (e.g., '2月17日 - 3月18日')." },
+          content: { type: Type.STRING, description: "Detailed prediction for this month directly from the source text." },
+          score: { type: Type.INTEGER, description: "Luck score from 1 to 5." },
+        },
+        required: ["month", "title", "solarDateRange", "content", "score"],
+      },
+    },
+    products: {
+      type: Type.ARRAY,
+      description: "Recommended Feng Shui products based on the '吉祥物' section.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING, description: "Name of the product in Chinese." },
+          type: { type: Type.STRING, description: "Material type (Crystal, Amber, Gold, etc)." },
+          description: { type: Type.STRING, description: "Keep this empty." },
+          reason: { type: Type.STRING, description: "Concise reason based on the text." },
+        },
+        required: ["name", "type", "description", "reason"],
+      },
+    },
+  },
+  required: ["overview", "monthly", "products"],
+};
+
+// Simple Zodiac Calculator based on standard Feb 4th cutoff (Li Chun)
+// This is a simplified approximation for the purpose of the app.
+const getZodiacSign = (dobString: string): string => {
+  const date = new Date(dobString);
+  let year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+
+  // If before Feb 4th, it counts as the previous year for Zodiac purposes
+  if (month < 2 || (month === 2 && day < 4)) {
+    year = year - 1;
+  }
+
+  // Modulo 12 returns index (0=Monkey, 1=Rooster, ..., 11=Goat) if we base it on a specific cycle.
+  // Standard cycle: Rat(4), Ox(5), Tiger(6), Rabbit(7), Dragon(8), Snake(9), Horse(10), Goat(11), Monkey(0), Rooster(1), Dog(2), Pig(3)
+  // Let's use a simpler array mapping from year % 12
+  
+  const zodiacs = [
+    "Monkey", "Rooster", "Dog", "Pig",
+    "Rat", "Ox", "Tiger", "Rabbit",
+    "Dragon", "Snake", "Horse", "Goat"
+  ];
+  
+  return zodiacs[year % 12];
+};
+
+export const analyzeFortune = async (
+  userData: UserData
+): Promise<FortuneResult> => {
+  
+  const zodiac = getZodiacSign(userData.dob);
+  const zodiacContent = ZODIAC_DATA[zodiac];
+
+  if (!zodiacContent) {
+    throw new Error(`Zodiac content not found for ${zodiac}`);
+  }
+
+  const prompt = `
+    You are an AI data parser acting as Master Song Shao Guang's digital assistant.
+    
+    **TASK**: 
+    I will provide you with the raw text content for the **${zodiac}** Zodiac sign from Master Song's "2026 Horse Year Almanac".
+    Your job is to **PARSE** this text into the specified JSON format.
+    
+    **RULES**:
+    1. **NO FABRICATION**: You must ONLY use the information provided in the source text below. Do not add external knowledge.
+    2. **NO SUMMARIZATION**: Preserve the full detail of the predictions.
+    3. **Overview Field**: 
+       - Combine the sections: 【整体运程】, 【财运】, 【事业】, 【感情】, 【健康】.
+       - Use Markdown headers (e.g. ### 整体运程) to separate them within the single string.
+    4. **Monthly Field**:
+       - Map the text for "农历正月" to month 1, "农历二月" to month 2, etc.
+       - Ensure the \`solarDateRange\` accurately matches the text provided (e.g. "西历 2026 年 2 月 4 日至 3 月 4 日").
+    5. **Products Field**:
+       - Look for the section "趋吉避凶的吉祥物".
+       - Extract the specific item mentioned (e.g., "生肖狗吊坠", "三合太岁挂件").
+       - If only one is listed, repeat it or split its description to fill the array, but prioritize accuracy.
+    6. **Language**: Output MUST be in Traditional Chinese (繁体中文) or Simplified Chinese (简体中文) exactly as it appears in the source text.
+
+    **SOURCE TEXT FOR ${zodiac} (DO NOT DEVIATE)**:
+    """
+    ${zodiacContent}
+    """
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash", 
+      contents: {
+        role: "user",
+        parts: [{ text: prompt }]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: fortuneSchema,
+      },
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("No response from Master.");
+    
+    return JSON.parse(text) as FortuneResult;
+  } catch (error) {
+    console.error("Fortune analysis failed:", error);
+    throw error;
+  }
+};
