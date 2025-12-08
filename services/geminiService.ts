@@ -3,28 +3,28 @@ import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { FortuneResult, UserData } from "../types";
 import { ZODIAC_DATA } from "./zodiacData";
 
-// Safely retrieve API Key to prevent "ReferenceError: process is not defined" in browser runtimes
+// Safely retrieve API Key with better fallback and validation
 const getApiKey = () => {
   let key = "";
   
-  // 1. Try standard Vite environment variable (most likely for Vercel/Vite)
+  // 1. Try standard Vite environment variable (Recommended for Vercel/Vite)
   // @ts-ignore
   if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
     // @ts-ignore
     key = import.meta.env.VITE_API_KEY;
   }
-  // 2. Try standard process.env (if polyfilled or defined by bundler)
+  // 2. Try standard process.env (Fallback)
   else if (typeof process !== 'undefined' && process.env) {
     key = process.env.API_KEY || "";
   }
 
-  if (!key) {
-    console.warn("API Key not found. Ensure API_KEY (or VITE_API_KEY) is set in your environment variables.");
-  }
   return key;
 };
 
-const ai = new GoogleGenAI({ apiKey: getApiKey() });
+// Initialize AI instance lazily or with a placeholder if key is missing to prevent load crash
+// We will check for the key again before making a request.
+const apiKey = getApiKey();
+const ai = new GoogleGenAI({ apiKey: apiKey || "DUMMY_KEY" });
 
 // Schema for structured JSON output
 const fortuneSchema: Schema = {
@@ -93,6 +93,10 @@ export const analyzeFortune = async (
   userData: UserData
 ): Promise<FortuneResult> => {
   
+  if (!apiKey) {
+    throw new Error("API Key is missing. Please set VITE_API_KEY in your environment variables.");
+  }
+
   const zodiac = getZodiacSign(userData.dob);
   const zodiacContent = ZODIAC_DATA[zodiac];
 
