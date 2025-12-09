@@ -25,17 +25,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   return (
     <div className={`group bg-mystic-bg border ${borderColor} rounded-xl overflow-hidden shadow-lg hover:shadow-2xl ${glowColor} transition-all duration-300 transform hover:-translate-y-1`}>
       {/* Image Container */}
-      <div className="h-48 w-full overflow-hidden bg-black relative">
-        <img 
-            src={imageUrl} 
-            alt={product.name}
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-90 group-hover:opacity-100"
-            loading="lazy"
-        />
-        <div className="absolute top-2 right-2 bg-black/70 backdrop-blur-sm px-2 py-1 rounded text-xs text-mystic-gold border border-mystic-gold/30">
-            {product.type}
-        </div>
-      </div>
+
 
       {/* Content */}
       <div className="p-5">
