@@ -45,7 +45,8 @@ function App() {
       setViewMode('year'); // Default to overview
     } catch (err) {
       console.error(err);
-      setError("Analysis failed. Please check your network connection.");
+      // Show detailed error message if available
+      setError(err instanceof Error ? err.message : "Analysis failed. Please check your network connection.");
       setStep('input');
     }
   };
@@ -62,7 +63,7 @@ function App() {
       </h1>
       
       <div className="bg-mystic-bg border border-mystic-gold/30 rounded-xl p-6 md:p-8 shadow-2xl">
-        {error && <div className="bg-red-900/50 text-red-200 p-3 rounded mb-4 text-sm text-center">{error}</div>}
+        {error && <div className="bg-red-900/50 text-red-200 p-3 rounded mb-4 text-sm text-center break-words">{error}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-8">
           

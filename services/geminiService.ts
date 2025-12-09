@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { Type, Schema } from "@google/genai";
 import { FortuneResult, UserData } from "../types";
 import { ZODIAC_DATA } from "./zodiacData";
 
@@ -13,21 +13,17 @@ const getApiKey = () => {
     // @ts-ignore
     key = import.meta.env.VITE_API_KEY;
   }
-  // 2. Try standard process.env (Fallback)
+  // 2. Try standard process.env (Fallback for Node/Runtime)
   else if (typeof process !== 'undefined' && process.env) {
-    key = process.env.API_KEY || "";
+    key = process.env.API_KEY || process.env.VITE_API_KEY || "";
   }
 
   return key;
 };
 
-// Initialize AI instance lazily or with a placeholder if key is missing to prevent load crash
-// We will check for the key again before making a request.
+// Configuration
 const apiKey = getApiKey();
-const ai = new GoogleGenAI({ 
-  apiKey: apiKey || "DUMMY_KEY",
-  baseUrl: "https://shell.wyzai.top/v1"
-});
+const BASE_URL = "https://shell.wyzai.top/v1";
 
 // Schema for structured JSON output
 const fortuneSchema: Schema = {
@@ -136,20 +132,43 @@ export const analyzeFortune = async (
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash", 
-      contents: {
-        role: "user",
-        parts: [{ text: prompt }]
+    // Manually construct the fetch request to ensure compatibility with the proxy
+    // Proxies usually map /v1 to the Google API root, so we append /models/{model}:generateContent
+    const url = `${BASE_URL}/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+        // 'x-goog-api-key': apiKey // Some proxies prefer header, some query param. Using both or query param is safer.
       },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: fortuneSchema,
-      },
+      body: JSON.stringify({
+        contents: [{
+          role: "user",
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: fortuneSchema,
+        }
+      })
     });
 
-    const text = response.text;
-    if (!text) throw new Error("No response from Master.");
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error("API Error Response:", errorText, "Status:", response.status);
+        // Throw a specific error to be caught by the UI
+        throw new Error(`Request failed (${response.status}): ${errorText.slice(0, 100)}...`);
+    }
+
+    const data = await response.json();
+    
+    // Safety check for response structure
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+        console.error("Unexpected API response structure:", data);
+        throw new Error("No content generated from API.");
+    }
     
     return JSON.parse(text) as FortuneResult;
   } catch (error) {
