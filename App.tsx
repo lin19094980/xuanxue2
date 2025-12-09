@@ -281,7 +281,7 @@ function App() {
       </main>
 
       <footer className="py-8 text-center text-gray-500 text-xs border-t border-mystic-accent/10 mt-auto">
-        <p>© 2026 Mystic Fortune | Powered by Gemini 2.5 | 僅供娛樂參考</p>
+        <p>© 2026 玄学 | 数据来源麦玲玲2026年生肖运程书 | 仅供娱乐</p>
       </footer>
     </div>
   );
