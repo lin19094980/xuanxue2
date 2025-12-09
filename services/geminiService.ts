@@ -1,70 +1,6 @@
 
-import { Type, Schema } from "@google/genai";
 import { FortuneResult, UserData } from "../types";
 import { ZODIAC_DATA } from "./zodiacData";
-
-// Safely retrieve API Key with better fallback and validation
-const getApiKey = () => {
-  let key = "";
-  
-  // 1. Try standard Vite environment variable (Recommended for Vercel/Vite)
-  // @ts-ignore
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
-    // @ts-ignore
-    key = import.meta.env.VITE_API_KEY;
-  }
-  // 2. Try standard process.env (Fallback for Node/Runtime)
-  else if (typeof process !== 'undefined' && process.env) {
-    key = process.env.API_KEY || process.env.VITE_API_KEY || "";
-  }
-
-  return key;
-};
-
-// Configuration
-const apiKey = getApiKey();
-const BASE_URL = "https://shell.wyzai.top/v1";
-
-// Schema for structured JSON output
-const fortuneSchema: Schema = {
-  type: Type.OBJECT,
-  properties: {
-    overview: {
-      type: Type.STRING,
-      description: "A comprehensive yearly overview. MUST combine '整体运程', '财运', '事业', '感情', '健康' sections from the source text using markdown headers.",
-    },
-    monthly: {
-      type: Type.ARRAY,
-      description: "A breakdown of fortune for each month of 2026.",
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          month: { type: Type.INTEGER, description: "The month number (1-12)" },
-          title: { type: Type.STRING, description: "A short 4-character idiom or title for the month based on content." },
-          solarDateRange: { type: Type.STRING, description: "The Gregorian date range for this lunar month (e.g., '2月17日 - 3月18日')." },
-          content: { type: Type.STRING, description: "Detailed prediction for this month directly from the source text." },
-          score: { type: Type.INTEGER, description: "Luck score from 1 to 5." },
-        },
-        required: ["month", "title", "solarDateRange", "content", "score"],
-      },
-    },
-    products: {
-      type: Type.ARRAY,
-      description: "Recommended Feng Shui products based on the '吉祥物' section.",
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          name: { type: Type.STRING, description: "Name of the product in Chinese." },
-          type: { type: Type.STRING, description: "Material type (Crystal, Amber, Gold, etc)." },
-          description: { type: Type.STRING, description: "Keep this empty." },
-          reason: { type: Type.STRING, description: "Concise reason based on the text." },
-        },
-        required: ["name", "type", "description", "reason"],
-      },
-    },
-  },
-  required: ["overview", "monthly", "products"],
-};
 
 // Simple Zodiac Calculator based on standard Feb 4th cutoff (Li Chun)
 const getZodiacSign = (dobString: string): string => {
@@ -88,91 +24,111 @@ const getZodiacSign = (dobString: string): string => {
   return zodiacs[year % 12];
 };
 
+const chineseNumberMap: Record<string, number> = {
+  "正": 1, "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6,
+  "七": 7, "八": 8, "九": 9, "十": 10, "十一": 11, "十二": 12
+};
+
 export const analyzeFortune = async (
   userData: UserData
 ): Promise<FortuneResult> => {
   
-  if (!apiKey) {
-    throw new Error("API Key is missing. Please set VITE_API_KEY in your environment variables.");
-  }
+  // Simulate a short delay for the "analyzing" UI effect
+  await new Promise(resolve => setTimeout(resolve, 800));
 
   const zodiac = getZodiacSign(userData.dob);
-  const zodiacContent = ZODIAC_DATA[zodiac];
+  const rawText = ZODIAC_DATA[zodiac];
 
-  if (!zodiacContent) {
+  if (!rawText) {
     throw new Error(`Zodiac content not found for ${zodiac}`);
   }
 
-  const prompt = `
-    You are an AI data parser acting as Master Song Shao Guang's digital assistant.
-    
-    **TASK**: 
-    I will provide you with the raw text content for the **${zodiac}** Zodiac sign from Master Song's "2026 Horse Year Almanac".
-    Your job is to **PARSE** this text into the specified JSON format.
-    
-    **RULES**:
-    1. **NO FABRICATION**: You must ONLY use the information provided in the source text below. Do not add external knowledge.
-    2. **NO SUMMARIZATION**: Preserve the full detail of the predictions.
-    3. **Overview Field**: 
-       - Combine the sections: 【整体运程】, 【财运】, 【事业】, 【感情】, 【健康】.
-       - Use Markdown headers (e.g. ### 整体运程) to separate them within the single string.
-    4. **Monthly Field**:
-       - Map the text for "农历正月" to month 1, "农历二月" to month 2, etc.
-       - Ensure the \`solarDateRange\` accurately matches the text provided (e.g. "西历 2026 年 2 月 4 日至 3 月 4 日").
-    5. **Products Field**:
-       - Look for the section "趋吉避凶的吉祥物".
-       - Extract the specific item mentioned (e.g., "生肖狗吊坠", "三合太岁挂件").
-       - If only one is listed, repeat it or split its description to fill the array, but prioritize accuracy.
-    6. **Language**: Output MUST be in Traditional Chinese (繁体中文) or Simplified Chinese (简体中文) exactly as it appears in the source text.
+  // --- Local Parsing Logic ---
 
-    **SOURCE TEXT FOR ${zodiac} (DO NOT DEVIATE)**:
-    """
-    ${zodiacContent}
-    """
-  `;
+  // 1. Separate the "Lucky Product" section (usually at the very end)
+  // We split by the header "趋吉避凶的吉祥物"
+  const productSplit = rawText.split("趋吉避凶的吉祥物");
+  let mainContent = rawText;
+  let productSection = "";
 
-  try {
-    // Manually construct the fetch request to ensure compatibility with the proxy
-    // Proxies usually map /v1 to the Google API root, so we append /models/{model}:generateContent
-    const url = `${BASE_URL}/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-        // 'x-goog-api-key': apiKey // Some proxies prefer header, some query param. Using both or query param is safer.
-      },
-      body: JSON.stringify({
-        contents: [{
-          role: "user",
-          parts: [{ text: prompt }]
-        }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: fortuneSchema,
-        }
-      })
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error("API Error Response:", errorText, "Status:", response.status);
-        // Throw a specific error to be caught by the UI
-        throw new Error(`Request failed (${response.status}): ${errorText.slice(0, 100)}...`);
-    }
-
-    const data = await response.json();
-    
-    // Safety check for response structure
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) {
-        console.error("Unexpected API response structure:", data);
-        throw new Error("No content generated from API.");
-    }
-    
-    return JSON.parse(text) as FortuneResult;
-  } catch (error) {
-    console.error("Fortune analysis failed:", error);
-    throw error;
+  if (productSplit.length > 1) {
+    mainContent = productSplit[0];
+    productSection = productSplit[1].trim();
   }
+
+  // 2. Extract Overview
+  // The overview is the text before the first month entry (starts with "农历")
+  const firstMonthIndex = mainContent.search(/农历[正一二三四五六七八九十]+月/);
+  let overviewText = "";
+  
+  if (firstMonthIndex !== -1) {
+    overviewText = mainContent.substring(0, firstMonthIndex).trim();
+  } else {
+    overviewText = mainContent.trim();
+  }
+
+  // Formatting:
+  // Remove the first line (usually "属X的 2026 年运程")
+  overviewText = overviewText.replace(/^.*\n/, "");
+  // Convert brackets 【Section】 to Markdown headers ### Section
+  overviewText = overviewText.replace(/【(.*?)】/g, "\n### $1");
+
+
+  // 3. Extract Months
+  const monthlyData = [];
+  // Regex explanation:
+  // 农历([number])月 -> Captures month name (Group 1)
+  // [（\(](.*?)[）\)] -> Captures date range inside brackets (Group 2)
+  // \s*([\s\S]*?) -> Captures content non-greedily (Group 3)
+  // (?=农历|$) -> Stop looking when we hit the next "农历" or end of string
+  const monthRegex = /农历([正一二三四五六七八九十]+)月[（\(](.*?)[）\)]\s*([\s\S]*?)(?=农历|$)/g;
+
+  let match;
+  while ((match = monthRegex.exec(mainContent)) !== null) {
+    const cnMonth = match[1];
+    const dateRange = match[2];
+    const content = match[3].trim();
+    const monthNum = chineseNumberMap[cnMonth] || 0;
+
+    // Generate a pseudo-score (3-5) based on content length for visual variety
+    const score = (content.length % 3) + 3; 
+
+    monthlyData.push({
+      month: monthNum,
+      title: "运程详解", // Generic title since we are parsing locally
+      solarDateRange: dateRange,
+      content: content,
+      score: score
+    });
+  }
+
+  // 4. Extract Products
+  const products = [];
+  if (productSection) {
+    // Try to extract a specific product name using a regex pattern common in the text
+    // Example: "可在东南摆放一个[三合太岁挂件]作为..."
+    const nameMatch = productSection.match(/摆放(一个|一座)(.*?)(作为|来|之|为)/);
+    const productName = nameMatch ? nameMatch[2].trim() : "开运吉祥物";
+
+    products.push({
+      name: productName,
+      type: "Feng Shui Item", 
+      description: "",
+      reason: productSection
+    });
+  } else {
+    // Fallback
+    products.push({
+      name: "生肖护身符",
+      type: "General",
+      description: "",
+      reason: "建议佩戴所属生肖的护身符以保平安。"
+    });
+  }
+
+  return {
+    overview: overviewText.trim(),
+    monthly: monthlyData,
+    products: products
+  };
 };

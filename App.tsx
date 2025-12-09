@@ -46,7 +46,7 @@ function App() {
     } catch (err) {
       console.error(err);
       // Show detailed error message if available
-      setError(err instanceof Error ? err.message : "Analysis failed. Please check your network connection.");
+      setError(err instanceof Error ? err.message : "Unable to load fortune data.");
       setStep('input');
     }
   };
