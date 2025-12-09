@@ -24,7 +24,10 @@ const getApiKey = () => {
 // Initialize AI instance lazily or with a placeholder if key is missing to prevent load crash
 // We will check for the key again before making a request.
 const apiKey = getApiKey();
-const ai = new GoogleGenAI({ apiKey: apiKey || "DUMMY_KEY" });
+const ai = new GoogleGenAI({ 
+  apiKey: apiKey || "DUMMY_KEY",
+  baseUrl: "https://shell.wyzai.top/v1"
+});
 
 // Schema for structured JSON output
 const fortuneSchema: Schema = {
